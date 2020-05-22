@@ -17,6 +17,7 @@ class Parser
         $this->nextToken();
     }
 
+
     // 主方法
     public function parse()
     {
@@ -25,7 +26,7 @@ class Parser
         {
             case 'unknown':
             case 'unexpect':
-                $this->throw_error('格式不正确');
+                $this->throw_error('格式错误', 'parse');
             case 'eof':
                 return array();
             case '[':
@@ -33,27 +34,34 @@ class Parser
             case '{':
                 return $this->parseObj();
             default:
-//                p($this->curToken);
-//                p($this->nextToken);
-                $this->throw_error('不知道啥情况');
+                p($this->curToken);
+                p($this->nextToken);
+                $this->throw_error('不知道啥情况', 'parse');
         }
     }
 
-//    private function parseJson()
-//    {
-//        switch ($this->curTokenType())
-//        {
-//            case '[':
-//                return $this->parseArr();
-//            case '{':
-//                return $this->parseObj();
-//            case ',':
-//                $this->nextToken();
-//                $this->parse();
-//            default:
-//                throw new Exception('不知道啥情况');
-//        }
-//    }
+    private function parseJson()
+    {
+        $arr = array();
+
+        switch ($this->curTokenType())
+        {
+            case '[':
+                $arr = $this->parseArr();
+                break;
+            case '{':
+                $arr = $this->parseObj();  
+                break;
+            case 'str':
+                $this->parseKvPair($arr);
+                break;
+            default:
+                $this->throw_error('curToken is:'.json_encode($this->curToken), 'parseJson');
+        }
+
+        return $arr;
+    }
+
 
     private function parseArr()
     {
@@ -61,16 +69,13 @@ class Parser
 
         $this->expectCurTokenType('[');
 
-//        if ($this->curTokenType() == '{')
-//        {
-//            $arr = $this->parseObj();
-//        }
-//        elseif ($this->curTokenType() == 'str')
-//        {
-//            $this->parseKvPair($arr);
-//        }
+        $arr[] = $this->parseJson();    
 
-        $this->parseKvPair($arr);
+        while ($this->curTokenTypeIs(','))
+        {
+            $this->nextToken();
+            $arr[] = $this->parseJson();
+        }
 
         $this->expectCurTokenType(']');
 
@@ -80,12 +85,19 @@ class Parser
     private function parseObj()
     {
         $arr = array();
-//p(1);
+
         $this->expectCurTokenType('{');
-//p(2);
+
         if ($this->curTokenTypeIs('str'))
         {
+            $this->parseKvPair($arr);   
+        }
+
+        while($this->curTokenTypeIs(','))
+        {
+            $this->nextToken();
             $this->parseKvPair($arr);
+//            return $arr;
         }
 
         $this->expectCurTokenType('}');
@@ -95,53 +107,38 @@ class Parser
 
     private function parseKvPair(&$arr)
     {
-        if ($this->curTokenTypeIs('str'))
+        if ($this->curTokenTypeIs('str'))   
         {
             $key = $this->curTokenLiteral();
             $this->expectNextTokenType(':');
             $this->nextToken();
-            $arr[$key] = $this->parseVal();
-//            p($arr);
+            $arr[$key] = $this->parseVal();     
+
 //            $this->nextToken();
+//            p($arr);
         }
-        elseif ($this->curTokenTypeIs('{'))
-        {
-            $arr[] = $this->parseObj();
-        }
-        elseif ($this->curTokenTypeIs('['))
-        {
-            $arr[] = $this->parseArr();
-        }
-        else
-        {
-            $this->throw_error_info('parseKvPair', 'str', json_encode($this->curToken));
-        }
-
-//        p($this->curToken);
-
-//        $this->nextToken();
-
-        if ($this->curTokenTypeIs(','))
+//p($this->curToken);
+        while ($this->curTokenTypeIs(','))
         {
 //            $this->nextToken();
             $this->nextToken();
-            return $this->parseKvPair($arr);
+            $this->parseKvPair($arr);   
         }
 
         return $arr;
     }
 
-    private function parseVal()
+    private function parseVal() 
     {
         switch ($this->curTokenType())
         {
             case '[':
-                return $this->parseArr();
+                return $this->parseArr();   
             case '{':
                 return $this->parseObj();
             case 'str':
 //                return $this->curTokenLiteral();
-                $val = $this->curTokenLiteral();
+                $val = $this->curTokenLiteral();    
                 $this->nextToken();
                 return $val;
             default:
@@ -179,7 +176,7 @@ class Parser
             return;
         }
 
-        $this->throw_error_info('expectNextTokenType', $tokenType, json_encode($this->nextToken));
+        $this->throw_error_info('expectNextTokenType', $tokenType, $this->nextToken['type']);
     }
 
     // 当前token的 type是不是期望的type，如果是，吃掉，如果不是，报错
@@ -191,6 +188,7 @@ class Parser
             return;
         }
 
+//        $this->throw_error_info('expectCurTokenType', $tokenType, $this->curTokenType());
         $this->throw_error_info('expectCurTokenType', $tokenType, json_encode($this->curToken));
     }
 
